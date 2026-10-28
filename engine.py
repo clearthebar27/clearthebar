@@ -276,25 +276,41 @@ def _rows_from_gamefinder(date_str):
 
 def get_slate(date_str):
     global _last_slate_error
-    errs = []
-    for cls in (ScoreboardV3, ScoreboardV2):
-        for ds in _date_variants(date_str):
-            try:
-                rows = _rows_from_frames(cls(game_date=ds, timeout=NET_TIMEOUT).get_data_frames())
-            except Exception as e:
-                errs.append(f"{cls.__name__}({ds}): {type(e).__name__} {e}")
-                continue
-            if rows:
-                _last_slate_error = ""
-                return pd.DataFrame(rows)
-            errs.append(f"{cls.__name__}({ds}): no usable frame")
-    rows = _rows_from_gamefinder(date_str)
-    if rows:
-        _last_slate_error = ""
-        return pd.DataFrame(rows)
-    errs.append("LeagueGameFinder: no games")
-    _last_slate_error = " | ".join(errs)
-    return pd.DataFrame(columns=["game_id", "home", "away"])
+    import requests
+    try:
+        ymd = _to_date(date_str).strftime('%Y%m%d')
+    except Exception:
+        ymd = str(date_str)
+    url = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=' + ymd
+    try:
+        r = requests.get(url, timeout=NET_TIMEOUT, headers={'User-Agent': 'Mozilla/5.0'})
+        blob = r.json()
+    except Exception as e:
+        _last_slate_error = 'espn ' + type(e).__name__
+        return pd.DataFrame(columns=['game_id', 'home', 'away'])
+    rows = []
+    for ev in (blob.get('events') or []):
+        try:
+            comp = (ev.get('competitions') or [{}])[0]
+            home = ''
+            away = ''
+            for c in (comp.get('competitors') or []):
+                ab = str((c.get('team') or {}).get('abbreviation') or '').upper()
+                if not ab:
+                    continue
+                if c.get('homeAway') == 'home':
+                    home = ab
+                elif c.get('homeAway') == 'away':
+                    away = ab
+            if home and away:
+                rows.append({'game_id': str(ev.get('id') or ''), 'home': _EFIX.get(home, home), 'away': _EFIX.get(away, away)})
+        except Exception:
+            continue
+    if not rows:
+        _last_slate_error = 'espn no games for ' + str(date_str)
+        return pd.DataFrame(columns=['game_id', 'home', 'away'])
+    _last_slate_error = ''
+    return pd.DataFrame(rows)
 
 
 def get_slate_cached(date_str, max_age=None):
@@ -326,15 +342,14 @@ def slate_teams(slate):
     return out
 
 
-def detect_slate_date(offsets=(0, -1, 1, -2, 2)):
+def detect_slate_date(offsets=(0, 1, -1, 2, -2)):
     for off in offsets:
-        ds = (datetime.now() + timedelta(days=off)).strftime("%m/%d/%Y")
+        ds = (datetime.now() + timedelta(days=off)).strftime('%m/%d/%Y')
         if not get_slate_cached(ds).empty:
             return ds
-    return datetime.now().strftime("%m/%d/%Y")
+    return datetime.now().strftime('%m/%d/%Y')
 
 
-# game logs ----------------------------------------------------------------
 def _prep_logs(df):
     d = df.copy()
     d["GAME_DATE"] = pd.to_datetime(d["GAME_DATE"], errors="coerce")
