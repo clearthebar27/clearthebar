@@ -274,6 +274,48 @@ def _rows_from_gamefinder(date_str):
     return []
 
 
+def _pp_slate(date_str):
+    import prizepicks
+    def _t(v):
+        try:
+            return datetime.fromisoformat(v)
+        except Exception:
+            return datetime.now()
+    try:
+        target = _to_date(date_str).strftime('%Y-%m-%d')
+    except Exception:
+        target = str(date_str)
+    projs, players = prizepicks._pull_raw()
+    stamps = []
+    for p in projs:
+        a = p.get('attributes') or {}
+        st = str(a.get('start_time') or '')
+        if st[:10] != target:
+            continue
+        pid = ((p.get('relationships') or {}).get('new_player') or {}).get('data') or {}
+        team = str((players.get(pid.get('id')) or {}).get('team') or '').strip().upper()
+        if not team:
+            team = str(a.get('description') or '').strip().upper().split('/')[0]
+        if not team:
+            continue
+        stamps.append((st, team))
+    if not stamps:
+        return pd.DataFrame(columns=['game_id', 'home', 'away'])
+    stamps.sort()
+    buckets = [[stamps[0]]]
+    for item in stamps[1:]:
+        if (_t(item[0]) - _t(buckets[-1][0][0])).total_seconds() <= 1200:
+            buckets[-1].append(item)
+        else:
+            buckets.append([item])
+    rows = []
+    for bkt in buckets:
+        teams = sorted({t for _, t in bkt})
+        if len(teams) == 2:
+            rows.append({'game_id': bkt[0][0], 'home': teams[0], 'away': teams[1]})
+    return pd.DataFrame(rows)
+
+
 def get_slate(date_str):
     global _last_slate_error
     import requests
@@ -282,15 +324,13 @@ def get_slate(date_str):
     except Exception:
         ymd = str(date_str)
     url = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=' + ymd
-    try:
-        r = requests.get(url, timeout=NET_TIMEOUT, headers={'User-Agent': 'Mozilla/5.0'})
-        blob = r.json()
-    except Exception as e:
-        _last_slate_error = 'espn ' + type(e).__name__
-        return pd.DataFrame(columns=['game_id', 'home', 'away'])
+    hdr = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36', 'Accept': 'application/json'}
     rows = []
-    for ev in (blob.get('events') or []):
-        try:
+    try:
+        r = requests.get(url, timeout=NET_TIMEOUT, headers=hdr)
+        print('  espn', r.status_code, ymd, len(r.text))
+        blob = r.json()
+        for ev in (blob.get('events') or []):
             comp = (ev.get('competitions') or [{}])[0]
             home = ''
             away = ''
@@ -304,13 +344,17 @@ def get_slate(date_str):
                     away = ab
             if home and away:
                 rows.append({'game_id': str(ev.get('id') or ''), 'home': _EFIX.get(home, home), 'away': _EFIX.get(away, away)})
-        except Exception:
-            continue
-    if not rows:
-        _last_slate_error = 'espn no games for ' + str(date_str)
-        return pd.DataFrame(columns=['game_id', 'home', 'away'])
-    _last_slate_error = ''
-    return pd.DataFrame(rows)
+    except Exception as e:
+        print('  espn failed', type(e).__name__, e)
+    if rows:
+        _last_slate_error = ''
+        return pd.DataFrame(rows)
+    alt = _pp_slate(date_str)
+    if not alt.empty:
+        _last_slate_error = 'espn empty, used prizepicks'
+        return alt
+    _last_slate_error = 'no slate (espn + prizepicks)'
+    return pd.DataFrame(columns=['game_id', 'home', 'away'])
 
 
 def get_slate_cached(date_str, max_age=None):
@@ -370,6 +414,7 @@ def _fetch_logs_one_season(s):
                {"season_nullable": s, "season_type_nullable": "Regular Season"}):
         try:
             raw = PlayerGameLogs(timeout=NET_TIMEOUT, **kw).get_data_frames()[0]
+            print('  logs rows', s, 0 if raw is None else len(raw))
             if raw is not None and not raw.empty:
                 return raw
         except Exception as e:
