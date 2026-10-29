@@ -328,7 +328,7 @@ def get_slate(date_str):
     rows = []
     try:
         r = requests.get(url, timeout=NET_TIMEOUT, headers=hdr)
-        print('  espn', r.status_code, ymd, len(r.text))
+        print('  espn', r.status_code, ymd, len(r.text), flush=True)
         blob = r.json()
         for ev in (blob.get('events') or []):
             comp = (ev.get('competitions') or [{}])[0]
@@ -345,7 +345,7 @@ def get_slate(date_str):
             if home and away:
                 rows.append({'game_id': str(ev.get('id') or ''), 'home': _EFIX.get(home, home), 'away': _EFIX.get(away, away)})
     except Exception as e:
-        print('  espn failed', type(e).__name__, e)
+        print('  espn failed', type(e).__name__, e, flush=True)
     if rows:
         _last_slate_error = ''
         return pd.DataFrame(rows)
@@ -418,11 +418,20 @@ def _fetch_logs_one_season(s):
             if raw is not None and not raw.empty:
                 return raw
         except Exception as e:
-            print("  log fetch failed:", s, kw, e)
+            print("  log fetch failed:", s, kw, e, flush=True)
     return None
 
 
 def get_logs(seasons=SEASONS):
+    import os
+    fp = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs_nba.csv.gz')
+    if os.path.exists(fp):
+        try:
+            snap = pd.read_csv(fp)
+            if snap is not None and not snap.empty:
+                return _prep_logs(snap)
+        except Exception as e:
+            print('  snapshot load failed', e, flush=True)
     key = "logs:" + "|".join(seasons)
     cached = _cache_get(key, max_age=LOG_CACHE_HOURS * 3600)
     if cached is not None and not cached.empty:
