@@ -727,7 +727,7 @@ def _candidates(date_str, markets, teams=None):
             p = _project_player(g, m, priors[m], prior_min, oppfac.get(opp, {}).get(m, 1.0), mult.get(pid, 1.0), _bm.get(_risk.get((team, opp)) or _risk.get((opp, team)), 1.0))
             if p is None:
                 continue
-            recs.append({"player": names[pid], "team": team, "opp": opp, "market": m,
+            recs.append({"player": names[pid], "pid": pid, "team": team, "opp": opp, "market": m,
                          "line": float(o["line"]), "over_price": float(o["over_price"]),
                          "under_price": float(o["under_price"]), "mu_raw": p["mu"],
                          "rate": p["rate"], "msd": p["msd"], "form": _recent_form(g, m),
@@ -774,7 +774,7 @@ def build_board(date_str=None, markets=None, min_edge=None, max_plays=None, bank
         dec = american_to_dec(price)
         ev = our * (dec - 1.0) - (1.0 - our)
         kelly = max(ev / (dec - 1.0), 0.0) * KELLY_FRACTION
-        rows.append({"player": r["player"], "team": r["team"], "opp": r["opp"],
+        rows.append({"player": r["player"], "pid": r.get("pid"), "team": r["team"], "opp": r["opp"],
                      "market": r["market"], "line": line, "side": side, "proj": round(mu, 2),
                      "form": round(float(r["form"]), 2) if pd.notna(r["form"]) else np.nan,
                      "avg_l10": round(float(r["avg_l10"]), 2),

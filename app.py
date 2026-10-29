@@ -217,6 +217,45 @@ def _full(ab):
     return _teams().get(str(ab), str(ab))
 
 
+def _review_ui(date_str):
+    import os
+    import pandas as pd
+    st.caption('Graded results for a past day. The daily job grades the previous slate automatically.')
+    d = st.text_input('Review date (mm/dd/yyyy)', value=str(date_str))
+    fp = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results_' + str(d).replace('/', '-') + '.csv')
+    if not os.path.exists(fp):
+        st.caption('No graded results for ' + str(d) + ' yet.')
+        return
+    try:
+        r = pd.read_csv(fp)
+    except Exception:
+        st.caption('Could not read results for ' + str(d))
+        return
+    if r.empty:
+        st.caption('No plays recorded for ' + str(d))
+        return
+    g = r[r['result'].isin(['WIN', 'LOSS'])]
+    c1, c2, c3 = st.columns(3)
+    c1.metric('Plays', len(r))
+    c2.metric('Settled', len(g))
+    if len(g):
+        c3.metric('Hit rate', str(round(100 * (g['result'] == 'WIN').mean(), 1)) + '%')
+        st.markdown('**Hit rate by market**')
+        t = g.groupby('market')['result'].apply(lambda x: round(100 * (x == 'WIN').mean(), 1)).reset_index()
+        t.columns = ['market', 'hit %']
+        st.dataframe(t, use_container_width=True, hide_index=True)
+        st.markdown('**Projection bias** (mean actual / mean line, 1.00 is perfect)')
+        g2 = g.copy()
+        g2['line'] = pd.to_numeric(g2['line'], errors='coerce')
+        g2['actual'] = pd.to_numeric(g2['actual'], errors='coerce')
+        bt = g2.groupby('market').apply(lambda x: round(float(x['actual'].mean() / max(x['line'].mean(), 1e-9)), 3)).reset_index()
+        bt.columns = ['market', 'actual/line']
+        st.dataframe(bt, use_container_width=True, hide_index=True)
+    show = [c for c in ['player', 'market', 'side', 'line', 'proj', 'actual', 'result'] if c in r.columns]
+    st.dataframe(r[show], use_container_width=True, hide_index=True, height=520)
+
+
+
 def _blow_ui(date_str):
     b = engine.blowout_board(date_str)
     if b is None or b.empty:
@@ -396,11 +435,8 @@ else:
             _blog = set(zip(_bdf['date'].astype(str), _bdf['player'].astype(str), _bdf['market'].astype(str), _bdf['side'].astype(str)))
         except Exception:
             _blog = set()
-    for _tab, _sd in zip(_tabs4 := st.tabs(['Best Unders', 'Best Overs', 'The Daily Card', 'All Props', 'Blowout Risk', 'My Bets']), ['UNDER', 'OVER', None]):
-        if _sd is None:
-            _sub = _frozen_card(board, date_str)
-        else:
-            _sub = board[board['side'] == _sd].reset_index(drop=True)
+    for _tab, _sd in zip(_tabs4 := st.tabs(['Best Unders', 'Best Overs', 'All Props', 'Blowout Risk', 'Review']), ['UNDER', 'OVER']):
+        _sub = board[board['side'] == _sd].reset_index(drop=True)
         with _tab:
             if _sub.empty:
                 st.caption('No plays in this bucket tonight.')
@@ -428,27 +464,16 @@ else:
                     unsafe_allow_html=True)
     
     
-    if _sd is None and not _sub.empty:
-        _b1, _b2, _b3 = st.columns([1, 1, 2])
-        if _b1.button('Rebuild card'):
-            _drop_card(date_str)
-            st.rerun()
-        if _b2.button('Log this card'):
-            _n = _log_card(_sub, date_str)
-            st.success('Logged ' + str(_n) + ' card plays')
-        if _b3.button('Log all board plays (score 80+)'):
-            _n = _log_card(board, date_str)
-            st.success('Logged ' + str(_n) + ' board plays')
 
-    with _tabs4[3]:
+    with _tabs4[2]:
         st.caption('Every prop for the current filters - no top-N cut.')
         _fc = [c for c in ['rank', 'player', 'team', 'opp', 'market', 'side', 'line', 'proj', 'edge', 'conviction', 'mean_min'] if c in board.columns]
         st.dataframe(board_full[_fc].sort_values('conviction', ascending=False), use_container_width=True, hide_index=True, height=620)
-    with _tabs4[4]:
+    with _tabs4[3]:
         _blow_ui(date_str)
 
-    with _tabs4[5]:
-        _bets_ui()
+    with _tabs4[4]:
+        _review_ui(date_str)
 
 with st.expander("Lines grid (" + str(len(st.session_state.get("lines", []))) + " rows)"):
     if "lines" not in st.session_state:

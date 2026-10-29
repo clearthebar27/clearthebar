@@ -14,6 +14,6 @@ if d is not None and not d.empty:
     engine.write_odds(pd.concat([keep, d], ignore_index=True))
 b = engine.build_board(date, min_edge=-0.10, max_plays=300)
 os.makedirs('boards', exist_ok=True)
-fp = 'boards/board_' + date.replace('/', '-') + '.csv'
+fp = 'board_' + date.replace('/', '-') + '.csv'
 b.to_csv(fp, index=False)
 print('board', date, len(b))
