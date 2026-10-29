@@ -13,7 +13,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install pandas numpy scipy requests
+      - run: pip install pandas numpy scipy requests nba_api
       - run: python fetch_logs.py
       - run: python build_board_snapshot.py "$(date -u +%m/%d/%Y)"
       - run: python grade_board.py "$(date -u -d yesterday +%m/%d/%Y)" || true
