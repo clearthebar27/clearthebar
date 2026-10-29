@@ -20,6 +20,6 @@ jobs:
       - run: |
           git config user.name bot
           git config user.email bot@example.com
-          git add logs_nba.csv.gz boards results odds.csv || true
+          git add logs_nba.csv.gz board_*.csv results_*.csv odds.csv || true
           git commit -m "daily $(date -u +%F)" || true
           git push || true
