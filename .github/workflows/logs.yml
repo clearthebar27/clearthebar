@@ -1,7 +1,7 @@
 name: fetch-logs
 on:
   schedule:
-    - cron: '0 15 * * *'
+    - cron: "0 15 * * *"
   workflow_dispatch:
 jobs:
   logs:
@@ -12,12 +12,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - run: pip install pandas numpy scipy nba_api
-      - run: python fetch_logs.py
+          python-version: "3.12"
+      - run: pip install pandas numpy scipy nba_api requests
+      - run: python -c "import requests;print('ESPN', requests.get('https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20261029', timeout=20).status_code)"
+      - run: python -c "import requests;print('CDN', requests.get('https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json', timeout=20).status_code)"
+      - run: python fetch_logs.py || true
       - run: |
           git config user.name bot
           git config user.email bot@example.com
-          git add logs_nba.csv.gz
-          git commit -m 'logs' || true
-          git push
+          git add logs_nba.csv.gz || true
+          git commit -m "logs" || true
+          git push || true
