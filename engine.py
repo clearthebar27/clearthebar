@@ -274,6 +274,8 @@ def _rows_from_gamefinder(date_str):
     return []
 
 
+_EFIX = {'NY': 'NYK', 'GS': 'GSW', 'NO': 'NOP', 'SA': 'SAS', 'UTAH': 'UTA', 'WSH': 'WAS'}
+
 def _pp_slate(date_str):
     import prizepicks
     def _t(v):
