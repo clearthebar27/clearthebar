@@ -8,7 +8,7 @@ UA = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.3
 SB = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates='
 SM = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event='
 FIX = {'NY': 'NYK', 'GS': 'GSW', 'NO': 'NOP', 'SA': 'SAS', 'UTAH': 'UTA', 'WSH': 'WAS'}
-DAYS = 420
+DAYS = 7
 
 def get(url):
     for _ in range(3):
@@ -64,5 +64,18 @@ if '3PT' in df.columns:
     df['FG3M'] = df['3PT'].astype(str).str.split('-').str[0]
 else:
     df['FG3M'] = 0
+
+import os
+if os.path.exists('logs_nba.csv.gz'):
+    try:
+        old = pd.read_csv('logs_nba.csv.gz')
+        df = pd.concat([old, df], ignore_index=True)
+    except Exception:
+        pass
+if 'PLAYER_ID' in df.columns and 'GAME_DATE' in df.columns:
+    df = df.drop_duplicates(subset=['PLAYER_ID', 'GAME_DATE'])
+df['GAME_DATE'] = pd.to_datetime(df['GAME_DATE'], errors='coerce')
+df = df[df['GAME_DATE'] >= (pd.Timestamp.utcnow().tz_localize(None) - pd.Timedelta(days=800))]
+df['GAME_DATE'] = df['GAME_DATE'].dt.strftime('%Y-%m-%d')
 df.to_csv('logs_nba.csv.gz', index=False, compression='gzip')
 print('wrote', len(df))
