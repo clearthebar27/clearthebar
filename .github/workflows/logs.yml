@@ -1,0 +1,23 @@
+name: fetch-logs
+on:
+  schedule:
+    - cron: '0 15 * * *'
+  workflow_dispatch:
+jobs:
+  logs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pandas nba_api
+      - run: python fetch_logs.py
+      - run: |
+          git config user.name bot
+          git config user.email bot@example.com
+          git add logs_nba.csv.gz
+          git commit -m 'logs' || true
+          git push
