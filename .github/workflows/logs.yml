@@ -15,6 +15,7 @@ jobs:
           python-version: "3.12"
       - run: pip install pandas numpy scipy nba_api requests
       - run: python -c "import requests;print('ESPN', requests.get('https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20261029', timeout=20).status_code)"
+      - run: python -c "import requests;print('PP', requests.get('https://partner-api.prizepicks.com/projections?league_id=7&per_page=5', headers={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'}, timeout=20).status_code)"
       - run: python -c "import requests;print('CDN', requests.get('https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json', timeout=20).status_code)"
       - run: python fetch_logs.py || true
       - run: |
